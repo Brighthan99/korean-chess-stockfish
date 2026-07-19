@@ -1,0 +1,29 @@
+{
+  "name": "korean-chess",
+  "version": "0.1.0",
+  "private": true,
+  "description": "한국 장기 — 브라우저에서 AI와 두는 장기 (Fairy-Stockfish WebAssembly)",
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "copy-wasm": "node scripts/copy-wasm.mjs",
+    "predev": "node scripts/copy-wasm.mjs",
+    "prebuild": "node scripts/copy-wasm.mjs"
+  },
+  "dependencies": {
+    "chessgroundx": "^10.7.4",
+    "fairy-stockfish-nnue.wasm": "1.1.11",
+    "ffish-es6": "0.7.9"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.1.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}

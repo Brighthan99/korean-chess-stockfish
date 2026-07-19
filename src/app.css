@@ -1,0 +1,158 @@
+:root {
+  --ink: #1f2430;
+  --sub: #5b6472;
+  --line: #e3e6ec;
+  --panel: #f7f8fa;
+  --cho: #1a6b4a; /* 초록(초) */
+  --han: #b03a3a; /* 붉은(한) */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--ink);
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', -apple-system, sans-serif;
+  line-height: 1.6;
+}
+
+.cho-c {
+  color: var(--cho);
+}
+.han-c {
+  color: var(--han);
+}
+
+/* ===== 장기판 (9x10, 기물은 교차점 위) =====
+   보드 SVG(900x1000)는 셀 중앙을 지나도록 선이 그려져 있어
+   chessgroundx의 셀 배치가 그대로 교차점 착수처럼 보인다. */
+.janggi .cg-wrap {
+  width: 100%;
+  height: 100%;
+}
+
+.janggi cg-board {
+  background-image: url('/board/JanggiWood.svg');
+  background-size: 100% 100%;
+}
+
+/* 9x10 셀 크기 (기본 CSS는 8x8 기준 12.5%) */
+.janggi .cg-wrap piece {
+  width: 11.1112%;
+  height: 10%;
+}
+.janggi cg-board square {
+  width: 11.1112%;
+  height: 10%;
+}
+
+/* 마지막 착수 하이라이트 — 따뜻한 호박색 (기획서 §5.7) */
+.janggi cg-board square.last-move {
+  background-color: rgba(232, 176, 60, 0.5);
+}
+.janggi cg-board square.check {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 0, 0, 0.55) 0%,
+    rgba(231, 0, 0, 0.35) 45%,
+    rgba(158, 0, 0, 0) 80%
+  );
+}
+.janggi cg-board square.move-dest {
+  background: radial-gradient(rgba(20, 60, 40, 0.45) 22%, rgba(0, 0, 0, 0) 24%);
+}
+.janggi cg-board square.selected {
+  background-color: rgba(26, 107, 74, 0.35);
+}
+
+/* ===== 기물 — Kadagaden 카카오장기 스타일 (CC BY 4.0) =====
+   초 = white(대문자 FEN) = blue_*, 한 = black = red_* */
+.kakao piece.k-piece.white {
+  background-image: url('/pieces/kakao/blue_king.svg');
+}
+.kakao piece.a-piece.white {
+  background-image: url('/pieces/kakao/blue_advisor.svg');
+}
+.kakao piece.b-piece.white {
+  background-image: url('/pieces/kakao/blue_elephant.svg');
+}
+.kakao piece.n-piece.white {
+  background-image: url('/pieces/kakao/blue_horse.svg');
+}
+.kakao piece.r-piece.white {
+  background-image: url('/pieces/kakao/blue_chariot.svg');
+}
+.kakao piece.c-piece.white {
+  background-image: url('/pieces/kakao/blue_cannon.svg');
+}
+.kakao piece.p-piece.white {
+  background-image: url('/pieces/kakao/blue_pawn.svg');
+}
+.kakao piece.k-piece.black {
+  background-image: url('/pieces/kakao/red_king.svg');
+}
+.kakao piece.a-piece.black {
+  background-image: url('/pieces/kakao/red_advisor.svg');
+}
+.kakao piece.b-piece.black {
+  background-image: url('/pieces/kakao/red_elephant.svg');
+}
+.kakao piece.n-piece.black {
+  background-image: url('/pieces/kakao/red_horse.svg');
+}
+.kakao piece.r-piece.black {
+  background-image: url('/pieces/kakao/red_chariot.svg');
+}
+.kakao piece.c-piece.black {
+  background-image: url('/pieces/kakao/red_cannon.svg');
+}
+.kakao piece.p-piece.black {
+  background-image: url('/pieces/kakao/red_pawn.svg');
+}
+
+/* 나무 테마 (옵션, 추후 테마 전환용) */
+.wooden piece.k-piece.white {
+  background-image: url('/pieces/wooden/blue_king.svg');
+}
+.wooden piece.a-piece.white {
+  background-image: url('/pieces/wooden/blue_advisor.svg');
+}
+.wooden piece.b-piece.white {
+  background-image: url('/pieces/wooden/blue_elephant.svg');
+}
+.wooden piece.n-piece.white {
+  background-image: url('/pieces/wooden/blue_horse.svg');
+}
+.wooden piece.r-piece.white {
+  background-image: url('/pieces/wooden/blue_chariot.svg');
+}
+.wooden piece.c-piece.white {
+  background-image: url('/pieces/wooden/blue_cannon.svg');
+}
+.wooden piece.p-piece.white {
+  background-image: url('/pieces/wooden/blue_pawn.svg');
+}
+.wooden piece.k-piece.black {
+  background-image: url('/pieces/wooden/red_king.svg');
+}
+.wooden piece.a-piece.black {
+  background-image: url('/pieces/wooden/red_advisor.svg');
+}
+.wooden piece.b-piece.black {
+  background-image: url('/pieces/wooden/red_elephant.svg');
+}
+.wooden piece.n-piece.black {
+  background-image: url('/pieces/wooden/red_horse.svg');
+}
+.wooden piece.r-piece.black {
+  background-image: url('/pieces/wooden/red_chariot.svg');
+}
+.wooden piece.c-piece.black {
+  background-image: url('/pieces/wooden/red_cannon.svg');
+}
+.wooden piece.p-piece.black {
+  background-image: url('/pieces/wooden/red_pawn.svg');
+}

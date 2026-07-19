@@ -1,0 +1,7 @@
+node_modules/
+dist/
+# copy-wasm.mjs가 node_modules에서 복사해오는 산출물
+public/engine/
+public/ffish/
+.DS_Store
+*.local

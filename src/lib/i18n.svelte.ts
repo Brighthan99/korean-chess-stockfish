@@ -14,7 +14,7 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'footer.engine': { ko: '엔진:', en: 'Engine:' },
   'footer.sourcePre': { ko: '이 사이트의', en: "This site's" },
   'footer.sourceLink': { ko: '소스 코드', en: 'source code' },
-  'footer.sourcePost': { ko: '는 GPL-3.0으로 공개됩니다', en: 'is published under GPL-3.0' },
+  'footer.sourcePost': { ko: '는 GPL-3.0으로 공개됩니다', en: ' is published under GPL-3.0' },
 
   // 차림 선택
   'setup.choSetup': { ko: '초 차림', en: 'Cho (Blue) setup' },
@@ -49,9 +49,11 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'rules.janggicasual': { ko: '캐주얼', en: 'Casual' },
   'rules.janggicasual.desc': { ko: '빅장·점수제 없음', en: 'No bikjang, no counting' },
   'setup.scorePreview': { ko: '기본 차림 점수 자동 세팅 —', en: 'Default setup scores —' },
-  'setup.scoreCho': { ko: '초 72점', en: 'Cho 72' },
+  'setup.scoreCho': { ko: '초 {n}점', en: 'Cho {n}' },
   'setup.scoreHan': { ko: '한 {n}점', en: 'Han {n}' },
-  'setup.dumNote': { ko: '(한 후수 덤 +{n})', en: "(Han's compensation +{n})" },
+  'setup.komiNote': { ko: '(한 후수 덤 +{n})', en: "(Han's komi +{n})" },
+  'setup.komiNoteCho': { ko: '(초 덤 +{n})', en: "(Cho's komi +{n})" },
+  'setup.komiNoteNone': { ko: '(덤 없음)', en: '(no komi)' },
   'setup.start': { ko: '대국 시작', en: 'Start game' },
 
   // 대국 패널
@@ -90,7 +92,11 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'result.resign': { ko: '(기권)', en: '(resignation)' },
   'btn.redo': { ko: '앞으로', en: 'Redo' },
   'btn.custom': { ko: '커스텀 대국', en: 'Custom game' },
+  'btn.flip': { ko: '보드 뒤집기', en: 'Flip board' },
   'modal.close': { ko: '닫기', en: 'Close' },
+  'setup.orientation': { ko: '보드 방향', en: 'Board orientation' },
+  'orient.cho': { ko: '초 아래', en: 'Cho at bottom' },
+  'orient.han': { ko: '한 아래', en: 'Han at bottom' },
 
   // 보드 에디터
   'setup.editor': { ko: '보드 에디터 (자유 배치)', en: 'Board editor (custom position)' },
@@ -115,10 +121,14 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
     en: 'The king and advisors must stay inside their own palace',
   },
   'editor.cancel': { ko: '돌아가기', en: 'Back' },
-  'setup.dum': { ko: '덤 (한 후수 보상)', en: 'Dum (Han compensation)' },
-  'dum.none': { ko: '없음', en: 'None' },
-  'dum.default': { ko: '1.5 (기본)', en: '1.5 (default)' },
-  'dum.custom': { ko: '직접 입력', en: 'Custom' },
+  'setup.komi': { ko: '덤 (후수 보상)', en: 'Komi (Deom)' },
+  'komi.sideHan': { ko: '한이 받음 (기본)', en: 'Han (default)' },
+  'komi.sideCho': { ko: '초가 받음', en: 'Cho' },
+  'komi.none': { ko: '없음', en: 'None' },
+  'komi.amount': { ko: '덤 점수', en: 'Komi points' },
+  'komi.default': { ko: '1.5 (기본)', en: '1.5 (default)' },
+  'komi.custom': { ko: '직접 입력', en: 'Custom' },
+  'panel.komi': { ko: '덤', en: 'Komi (Deom)' },
 
   // 이어두기 / 기보 불러오기 / 내보내기
   'setup.resume': { ko: '이어두기', en: 'Resume' },

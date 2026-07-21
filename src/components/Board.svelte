@@ -20,7 +20,7 @@
       game.mode === 'ai' ? (game.humanColor === 'w' ? 'white' : 'black') : turnColor;
     return {
       fen: game.boardFen.split(' ')[0],
-      orientation: game.mode === 'ai' && game.humanColor === 'b' ? 'black' : 'white',
+      orientation: game.orientation === 'b' ? 'black' : 'white',
       turnColor,
       lastMove: (game.lastMove ?? undefined) as cg.Key[] | undefined,
       check: game.checkKey ? ([game.checkKey] as cg.Key[]) : false,

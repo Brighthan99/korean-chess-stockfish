@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SETUPS, type SetupId } from '../lib/setups';
-  import { HAN_DUM } from '../lib/rules';
-  import { game, type Ruleset, type GameConfig } from '../lib/game.svelte';
+  import { HAN_KOMI } from '../lib/rules';
+  import { game, type Ruleset, type GameConfig, type KomiSide } from '../lib/game.svelte';
   import { i18n, t } from '../lib/i18n.svelte';
   import { parseGibo, readGiboFile } from '../lib/gibo';
 
@@ -20,6 +20,13 @@
   let playMode = $state<'ai-cho' | 'ai-han' | 'manual'>('ai-cho');
   let aiMovetime = $state(1000);
   let ruleset = $state<Ruleset>('janggi');
+  let orientation = $state<'w' | 'b'>('w');
+  let komiSide = $state<KomiSide>('han');
+
+  // 대국 방식이 바뀌면 보드 방향 기본값을 내 기물이 아래로 오게 따라간다 (이후 수동 변경 가능)
+  $effect(() => {
+    orientation = playMode === 'ai-han' ? 'b' : 'w';
+  });
 
   const RULESET_IDS: Ruleset[] = ['janggi', 'janggitraditional', 'janggimodern', 'janggicasual'];
 
@@ -35,7 +42,9 @@
       humanColor: playMode === 'ai-han' ? 'b' : 'w',
       aiMovetime,
       ruleset,
-      dum: HAN_DUM,
+      komi: HAN_KOMI,
+      komiSide,
+      orientation,
     };
   }
 
@@ -147,10 +156,34 @@
       </div>
     </div>
 
+    <div class="opt">
+      <span class="opt-label">{t('setup.orientation')}</span>
+      <div class="seg">
+        <button class:active={orientation === 'w'} onclick={() => (orientation = 'w')}>{t('orient.cho')}</button>
+        <button class:active={orientation === 'b'} onclick={() => (orientation = 'b')}>{t('orient.han')}</button>
+      </div>
+    </div>
+
+    <div class="opt">
+      <span class="opt-label">{t('setup.komi')}</span>
+      <div class="seg">
+        <button class:active={komiSide === 'han'} onclick={() => (komiSide = 'han')}>{t('komi.sideHan')}</button>
+        <button class:active={komiSide === 'cho'} onclick={() => (komiSide = 'cho')}>{t('komi.sideCho')}</button>
+        <button class:active={komiSide === 'none'} onclick={() => (komiSide = 'none')}>{t('komi.none')}</button>
+      </div>
+    </div>
+
     <div class="score-preview">
       {t('setup.scorePreview')}
-      <b class="cho-c">{t('setup.scoreCho')}</b> : <b class="han-c">{t('setup.scoreHan', { n: 72 + HAN_DUM })}</b>
-      <small>{t('setup.dumNote', { n: HAN_DUM })}</small>
+      <b class="cho-c">{t('setup.scoreCho', { n: 72 + (komiSide === 'cho' ? HAN_KOMI : 0) })}</b> :
+      <b class="han-c">{t('setup.scoreHan', { n: 72 + (komiSide === 'han' ? HAN_KOMI : 0) })}</b>
+      <small>
+        {komiSide === 'han'
+          ? t('setup.komiNote', { n: HAN_KOMI })
+          : komiSide === 'cho'
+            ? t('setup.komiNoteCho', { n: HAN_KOMI })
+            : t('setup.komiNoteNone')}
+      </small>
     </div>
 
     <button class="start" onclick={start}>{t('setup.start')}</button>

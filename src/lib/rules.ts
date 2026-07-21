@@ -11,7 +11,7 @@ export const PIECE_VALUES: Record<string, number> = {
   k: 0,
 };
 
-export const HAN_DUM = 1.5;
+export const HAN_KOMI = 1.5;
 
 /** FEN 보드 부분을 uci 좌표('e2') → 기물 문자(대문자=초) 맵으로 파싱한다. */
 export function fenBoard(fen: string): Map<string, string> {

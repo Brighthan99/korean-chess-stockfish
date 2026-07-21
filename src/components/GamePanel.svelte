@@ -104,6 +104,16 @@
     </div>
   </div>
 
+  <!-- 덤 받는 쪽 — 대국 중에도 변경 가능 (점수판 즉시 반영) -->
+  <div class="komi-row">
+    <span class="komi-label">{t('panel.komi')} {game.komi}</span>
+    <div class="komi-seg">
+      <button class:active={game.komiSide === 'han'} onclick={() => game.setKomiSide('han')}>{t('side.han')}</button>
+      <button class:active={game.komiSide === 'cho'} onclick={() => game.setKomiSide('cho')}>{t('side.cho')}</button>
+      <button class:active={game.komiSide === 'none'} onclick={() => game.setKomiSide('none')}>{t('komi.none')}</button>
+    </div>
+  </div>
+
   {#if game.engineError}
     <div class="engine-error">{t('engine.unavailable')}: {t(game.engineError)}</div>
   {/if}
@@ -131,6 +141,7 @@
     <button class:on={game.analysisOn} onclick={() => game.toggleAnalysis()} disabled={!game.engineReady}>
       {t('btn.analysis')}
     </button>
+    <button onclick={() => game.flipOrientation()}>{t('btn.flip')}</button>
     <button onclick={() => game.resign()} disabled={game.result !== null}>{t('btn.resign')}</button>
     <button onclick={() => game.newGame()}>{t('btn.newGame')}</button>
     <button onclick={() => game.openEditor()}>{t('btn.custom')}</button>
@@ -265,6 +276,37 @@
     font-weight: 700;
     color: var(--cho);
     font-size: 13.5px;
+  }
+  .komi-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12.5px;
+    padding: 0 2px;
+  }
+  .komi-label {
+    color: var(--sub);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .komi-seg {
+    display: flex;
+    gap: 4px;
+  }
+  .komi-seg button {
+    border: 1.5px solid var(--line);
+    background: #fff;
+    border-radius: 14px;
+    padding: 2px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--sub);
+  }
+  .komi-seg button.active {
+    border-color: var(--cho);
+    background: var(--cho);
+    color: #fff;
   }
   .engine-error {
     background: #fdf0f0;

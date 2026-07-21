@@ -3,9 +3,9 @@
   import { Chessground } from 'chessgroundx/chessground.js';
   import type { Api } from 'chessgroundx/api.js';
   import type * as cg from 'chessgroundx/types.js';
-  import { game, type Ruleset } from '../lib/game.svelte';
+  import { game, type Ruleset, type KomiSide } from '../lib/game.svelte';
   import { DEFAULT_START_FEN } from '../lib/setups';
-  import { HAN_DUM, PIECE_LIMITS, isPalaceSquare, findEditorViolation, fenBoard, type EditorViolation } from '../lib/rules';
+  import { HAN_KOMI, PIECE_LIMITS, isPalaceSquare, findEditorViolation, fenBoard, type EditorViolation } from '../lib/rules';
   import { keyToUci, pieceKo, pieceEn } from '../lib/notation';
   import { i18n, t } from '../lib/i18n.svelte';
 
@@ -29,6 +29,7 @@
   let api: Api | undefined;
   let brush = $state<Brush>(null);
   let sideToMove = $state<'w' | 'b'>(game.boardFen ? game.turn : 'w');
+  let orientation = $state<'w' | 'b'>(game.orientation);
   let fenText = $state(initialBoard);
   let invalid = $state(false);
   let warning = $state<string | null>(null);
@@ -44,8 +45,10 @@
   let playMode = $state<'ai-cho' | 'ai-han' | 'manual'>('ai-cho');
   let aiMovetime = $state(1000);
   let ruleset = $state<Ruleset>('janggi');
-  let dumChoice = $state<'none' | 'default' | 'custom'>('none'); // 임의 배치 → 덤 기본 없음 (기획서 §5.4)
-  let dumCustom = $state(1.5);
+  // 임의 배치는 후수 덤을 알 수 없으므로 기본 없음, 받는 쪽·점수를 직접 지정 (기획서 §5.4)
+  let komiSide = $state<KomiSide>('none');
+  let komiAmount = $state<'default' | 'custom'>('default');
+  let komiCustom = $state(1.5);
 
   const RULESET_IDS: Ruleset[] = ['janggi', 'janggitraditional', 'janggimodern', 'janggicasual'];
 
@@ -135,6 +138,11 @@
     warning = null;
   });
 
+  // 보드 방향 선택 반영
+  $effect(() => {
+    api?.set({ orientation: orientation === 'b' ? 'black' : 'white' });
+  });
+
   function setBoardFen(fen: string): void {
     api?.set({ fen });
     syncFromBoard();
@@ -148,10 +156,10 @@
     return `${api?.getFen() ?? fenText} ${sideToMove} - - 0 1`;
   }
 
-  function dum(): number {
-    if (dumChoice === 'none') return 0;
-    if (dumChoice === 'default') return HAN_DUM;
-    return Number.isFinite(dumCustom) ? dumCustom : 0;
+  function komi(): number {
+    if (komiSide === 'none') return 0;
+    if (komiAmount === 'default') return HAN_KOMI;
+    return Number.isFinite(komiCustom) ? komiCustom : 0;
   }
 
   function start(): void {
@@ -166,7 +174,9 @@
       humanColor: playMode === 'ai-han' ? 'b' : 'w',
       aiMovetime,
       ruleset,
-      dum: dum(),
+      komi: komi(),
+      komiSide,
+      orientation,
     });
   }
 </script>
@@ -226,6 +236,14 @@
         </div>
       </div>
 
+      <div class="opt">
+        <span class="opt-label">{t('setup.orientation')}</span>
+        <div class="seg">
+          <button class:active={orientation === 'w'} onclick={() => (orientation = 'w')}>{t('orient.cho')}</button>
+          <button class:active={orientation === 'b'} onclick={() => (orientation = 'b')}>{t('orient.han')}</button>
+        </div>
+      </div>
+
       <div class="opt fen-row">
         <span class="opt-label">FEN</span>
         <input class="fen" type="text" bind:value={fenText} spellcheck="false" />
@@ -263,18 +281,28 @@
         </div>
       </div>
 
-      <!-- 임의 배치는 후수 덤을 알 수 없으므로 직접 지정 (기획서 §5.4) -->
+      <!-- 임의 배치는 후수 덤을 알 수 없으므로 받는 쪽·점수를 직접 지정 (기획서 §5.4) -->
       <div class="opt">
-        <span class="opt-label">{t('setup.dum')}</span>
+        <span class="opt-label">{t('setup.komi')}</span>
         <div class="seg">
-          <button class:active={dumChoice === 'none'} onclick={() => (dumChoice = 'none')}>{t('dum.none')}</button>
-          <button class:active={dumChoice === 'default'} onclick={() => (dumChoice = 'default')}>{t('dum.default')}</button>
-          <button class:active={dumChoice === 'custom'} onclick={() => (dumChoice = 'custom')}>{t('dum.custom')}</button>
-          {#if dumChoice === 'custom'}
-            <input class="dum-input" type="number" step="0.5" min="0" bind:value={dumCustom} />
-          {/if}
+          <button class:active={komiSide === 'none'} onclick={() => (komiSide = 'none')}>{t('komi.none')}</button>
+          <button class:active={komiSide === 'han'} onclick={() => (komiSide = 'han')}>{t('komi.sideHan')}</button>
+          <button class:active={komiSide === 'cho'} onclick={() => (komiSide = 'cho')}>{t('komi.sideCho')}</button>
         </div>
       </div>
+
+      {#if komiSide !== 'none'}
+        <div class="opt">
+          <span class="opt-label">{t('komi.amount')}</span>
+          <div class="seg">
+            <button class:active={komiAmount === 'default'} onclick={() => (komiAmount = 'default')}>{t('komi.default')}</button>
+            <button class:active={komiAmount === 'custom'} onclick={() => (komiAmount = 'custom')}>{t('komi.custom')}</button>
+            {#if komiAmount === 'custom'}
+              <input class="komi-input" type="number" step="0.5" min="0" bind:value={komiCustom} />
+            {/if}
+          </div>
+        </div>
+      {/if}
 
       {#if warning}
         <p class="invalid">{warning}</p>
@@ -421,7 +449,7 @@
     font-family: 'SF Mono', Menlo, monospace;
     font-size: 12px;
   }
-  .dum-input {
+  .komi-input {
     width: 70px;
     border: 1.5px solid var(--line);
     border-radius: 8px;

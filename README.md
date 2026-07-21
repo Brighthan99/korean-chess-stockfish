@@ -66,3 +66,12 @@ for the deployed website.
 - Move sounds are original works synthesized for this project (`scripts/gen_sounds.py`)
 - Engine and rules libraries: [Fairy-Stockfish](https://github.com/fairy-stockfish/Fairy-Stockfish)
   and derivatives, GPL-3.0
+
+### Acknowledgements
+
+- [fairyground](https://github.com/ianfab/fairyground) — the Fairy-Stockfish author's official
+  web playground. Its architecture guided this project: the ffish-es6 ↔ fairy-stockfish-nnue.wasm
+  version pairing, COOP/COEP setup, the 16 janggi opening-setup FENs, and the NNUE-via-WASM-FS
+  loading technique were all learned by studying it (no code or assets were copied from it).
+- [PyChess](https://github.com/gbtami/pychess-variants) — reference for janggi rules, notation,
+  and PGN conventions.

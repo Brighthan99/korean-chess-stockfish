@@ -2,7 +2,7 @@
 import { initFfish, type FfishModule, type FfishBoard } from './ffish';
 import { engine, type SearchInfo } from './engine';
 import { buildStartFen, type SetupId } from './setups';
-import { materialScore, fenBoard, kingSquare, HAN_DUM } from './rules';
+import { materialScore, fenBoard, kingSquare, HAN_KOMI } from './rules';
 import { parseUci, uciToKey } from './notation';
 import { playSound } from './sound';
 import { saveGame, loadSavedGame, type SavedGame } from './storage';
@@ -26,9 +26,15 @@ export interface GameConfig {
   humanColor: 'w' | 'b'; // mode === 'ai'일 때 사람이 두는 쪽
   aiMovetime: number;
   ruleset: Ruleset;
-  /** 한 후수 덤. 기본 차림은 1.5, 자유 배치는 사용자 지정. (기획서 §5.4) */
-  dum: number;
+  /** 덤 점수. 기본 차림은 1.5, 자유 배치는 사용자 지정. (기획서 §5.4) */
+  komi: number;
+  /** 덤을 받는 쪽 — 기본은 한(후수 보상). */
+  komiSide?: KomiSide;
+  /** 보드 방향 — 아래쪽에 놓이는 진영. 생략 시 AI 모드는 내 기물, 그 외 초. */
+  orientation?: 'w' | 'b';
 }
+
+export type KomiSide = 'han' | 'cho' | 'none';
 
 export interface SetupChoice extends GameConfig {
   choSetup: SetupId;
@@ -46,7 +52,11 @@ class GameState {
   humanColor = $state<'w' | 'b'>('w');
   aiMovetime = $state(1000);
   ruleset = $state<Ruleset>('janggi');
-  dum = $state(HAN_DUM);
+  komi = $state(HAN_KOMI);
+  /** 덤을 받는 쪽 — 대국 중에도 변경 가능. */
+  komiSide = $state<KomiSide>('han');
+  /** 보드 방향 — 아래쪽 진영. 대국 중에도 전환 가능. */
+  orientation = $state<'w' | 'b'>('w');
 
   // 대국 상태
   startFen = $state('');
@@ -60,7 +70,7 @@ class GameState {
   canPass = $state(false);
   result = $state<string | null>(null); // '1-0' | '0-1' | '1/2-1/2'
   resigned = $state(false);
-  score = $state({ cho: 72, han: 72 + HAN_DUM });
+  score = $state({ cho: 72, han: 72 + HAN_KOMI });
   dests = $state<Map<string, string[]>>(new Map());
 
   // 엔진 상태
@@ -120,7 +130,8 @@ class GameState {
   async autoStart(): Promise<void> {
     await this.init();
     const saved = loadSavedGame();
-    if (saved && saved.moves.length > 0 && !saved.result) {
+    // 끝나지 않은 대국은 수가 없어도 복원 — 보드 방향·모드·규칙 등 설정 유지
+    if (saved && !saved.result) {
       if (await this.resumeSaved()) {
         void this.initNnue(); // 저장된 NNUE 백그라운드 복원
         return;
@@ -134,7 +145,7 @@ class GameState {
       humanColor: 'w',
       aiMovetime: 1000,
       ruleset: 'janggi',
-      dum: HAN_DUM,
+      komi: HAN_KOMI,
     });
     void this.initNnue(); // 저장된 NNUE 백그라운드 복원
   }
@@ -239,9 +250,24 @@ class GameState {
       humanColor: saved.humanColor,
       aiMovetime: saved.aiMovetime,
       ruleset: saved.ruleset,
-      dum: saved.dum,
+      komi: saved.komi,
+      komiSide: saved.komiSide,
+      orientation: saved.orientation,
     });
     return true;
+  }
+
+  /** 보드 상하 반전 (대국 중 언제든). */
+  flipOrientation(): void {
+    this.orientation = this.orientation === 'w' ? 'b' : 'w';
+    this.autosave();
+  }
+
+  /** 덤 받는 쪽 변경 (대국 중 언제든) — 점수판 즉시 반영. */
+  setKomiSide(side: KomiSide): void {
+    this.komiSide = side;
+    this.refresh();
+    this.autosave();
   }
 
   private async begin(fen: string, cfg: GameConfig, opts: { silent?: boolean } = {}): Promise<void> {
@@ -250,7 +276,10 @@ class GameState {
     this.humanColor = cfg.humanColor;
     this.aiMovetime = cfg.aiMovetime;
     this.ruleset = cfg.ruleset;
-    this.dum = cfg.dum;
+    this.komi = cfg.komi;
+    this.komiSide = cfg.komiSide ?? 'han';
+    this.orientation =
+      cfg.orientation ?? (cfg.mode === 'ai' && cfg.humanColor === 'b' ? 'b' : 'w');
 
     this.seq++;
     this.startFen = fen;
@@ -287,7 +316,9 @@ class GameState {
       humanColor: this.humanColor,
       aiMovetime: this.aiMovetime,
       ruleset: this.ruleset,
-      dum: this.dum,
+      komi: this.komi,
+      komiSide: this.komiSide,
+      orientation: this.orientation,
       result: this.result,
       ts: Date.now(),
     };
@@ -327,7 +358,10 @@ class GameState {
     this.bikjang = b.isBikjang();
 
     const mat = materialScore(this.boardFen);
-    this.score = { cho: mat.cho, han: mat.han + this.dum };
+    this.score = {
+      cho: mat.cho + (this.komiSide === 'cho' ? this.komi : 0),
+      han: mat.han + (this.komiSide === 'han' ? this.komi : 0),
+    };
 
     if (b.isGameOver()) {
       this.result = b.result();

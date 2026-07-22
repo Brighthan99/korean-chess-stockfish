@@ -1,12 +1,12 @@
-// 차림(마상 배치) 데이터와 시작 FEN 생성. (기획서 §6.1)
-// FEN·기보 헤더는 보드 절대좌표(초 시점) 기준이므로, 한의 차림은
-// 자기 자리 기준 선택을 좌우 반전해 절대좌표로 변환한다.
+// Opening setup (horse/elephant arrangement) data and start FEN generation. (plan §6.1)
+// FEN and gibo headers use absolute board coordinates (Cho's view), so Han's setup,
+// chosen from Han's own seat, is mirrored left-right into absolute coordinates.
 
 export type SetupId = 'inner' | 'left' | 'right' | 'outer';
 
 export interface SetupInfo {
   id: SetupId;
-  pattern: string; // 자기 자리 기준 2·3·7·8열 배열 (표시용 — 이름/설명은 i18n 키 setup.name.*, setup.desc.*)
+  pattern: string; // columns 2/3/7/8 from the player's own seat (display only — names/descriptions are i18n keys setup.name.*, setup.desc.*)
 }
 
 export const SETUPS: SetupInfo[] = [
@@ -16,15 +16,15 @@ export const SETUPS: SetupInfo[] = [
   { id: 'outer', pattern: '상마마상' },
 ];
 
-// 자기 자리 기준 b,c,g,h열의 기물 (n=마, b=상)
+// Pieces on files b,c,g,h from the player's own seat (n=horse, b=elephant)
 const ARRANGEMENT: Record<SetupId, string> = {
-  inner: 'nbbn', // 마상상마
-  left: 'bnbn', // 상마상마
-  right: 'nbnb', // 마상마상
-  outer: 'bnnb', // 상마마상
+  inner: 'nbbn', // horse-elephant-elephant-horse (마상상마)
+  left: 'bnbn', // elephant-horse-elephant-horse (상마상마)
+  right: 'nbnb', // horse-elephant-horse-elephant (마상마상)
+  outer: 'bnnb', // elephant-horse-horse-elephant (상마마상)
 };
 
-/** 절대좌표 배열(2·3·7·8열, 'nbbn' 형식)로 시작 FEN을 만든다. */
+/** Build a start FEN from absolute-coordinate arrangements (columns 2/3/7/8, 'nbbn' form). */
 export function fenFromAbsolute(choArr: string, hanArr: string, firstMover: 'w' | 'b'): string {
   const c = choArr;
   const h = hanArr;
@@ -33,13 +33,13 @@ export function fenFromAbsolute(choArr: string, hanArr: string, firstMover: 'w' 
   return `${hanRank}/4k4/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/4K4/${choRank} ${firstMover} - - 0 1`;
 }
 
-/** 초·한 차림(자기 자리 기준)과 선수(先手)로 시작 FEN을 만든다. */
+/** Build a start FEN from Cho/Han setups (each from the player's own seat) and the first mover. */
 export function buildStartFen(cho: SetupId, han: SetupId, firstMover: 'w' | 'b'): string {
-  // 한은 자기 자리 기준 → 절대좌표로 좌우 반전
+  // Han's choice is seat-relative → mirror left-right into absolute coordinates
   return fenFromAbsolute(ARRANGEMENT[cho], [...ARRANGEMENT[han]].reverse().join(''), firstMover);
 }
 
-// 절대좌표 배열 ↔ 한국식 차림 이름 (KJA 기보 헤더는 절대좌표 기준)
+// Absolute-coordinate arrangement ↔ Korean setup name (KJA gibo headers use absolute coordinates)
 export const ARR_TO_KO: Record<string, string> = {
   nbbn: '마상상마',
   bnbn: '상마상마',
@@ -50,7 +50,7 @@ export const KO_TO_ARR: Record<string, string> = Object.fromEntries(
   Object.entries(ARR_TO_KO).map(([k, v]) => [v, k]),
 );
 
-/** FEN 백랭크에서 절대좌표 차림 이름을 읽는다 (비표준 배치면 null). */
+/** Read the absolute-coordinate setup name from a FEN back rank (null for non-standard positions). */
 export function fenPattern(fen: string, side: 'cho' | 'han'): string | null {
   const board = fen.split(' ')[0] ?? '';
   const ranks = board.split('/');

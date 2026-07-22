@@ -1,5 +1,5 @@
-// ffish-es6는 패키지에 ffish.d.ts가 있지만 package.json에 types 필드가 없어
-// 여기서 필요한 부분만 선언한다. (원본: node_modules/ffish-es6/ffish.d.ts)
+// ffish-es6 ships ffish.d.ts in the package, but its package.json has no types field,
+// so only the parts we need are declared here. (Source: node_modules/ffish-es6/ffish.d.ts)
 declare module 'ffish-es6' {
   export interface FfishBoard {
     delete(): void;
@@ -13,7 +13,7 @@ declare module 'ffish-es6' {
     setFen(fen: string): void;
     sanMove(uciMove: string, notation?: number): string;
     variationSan(uciMoves: string, notation?: number, moveNumbers?: boolean): string;
-    turn(): boolean; // true = white(초)
+    turn(): boolean; // true = white (Cho)
     fullmoveNumber(): number;
     gamePly(): number;
     isGameOver(claimDraw?: boolean): boolean;
@@ -46,13 +46,13 @@ declare module 'ffish-es6' {
   export default Module;
 }
 
-// fairy-stockfish-nnue.wasm의 stockfish.js는 <script>로 로드되는 클래식 스크립트로,
-// 전역 Stockfish 팩토리를 정의한다.
+// stockfish.js from fairy-stockfish-nnue.wasm is a classic script loaded via <script>,
+// defining the global Stockfish factory.
 interface StockfishInstance {
   postMessage(cmd: string): void;
   addMessageListener(cb: (line: string) => void): void;
   terminate?(): void;
-  /** emscripten 가상 파일시스템 — NNUE 넷 파일 기록에 사용 */
+  /** emscripten virtual filesystem — used to write the NNUE net file */
   FS: {
     writeFile(path: string, data: Uint8Array): void;
     unlink(path: string): void;

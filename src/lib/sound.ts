@@ -1,4 +1,4 @@
-// 착수 사운드. 파일은 직접 제작한 자체 저작 WAV (public/sounds/, 기획서 §5.8).
+// Move sounds. Files are self-made original WAVs (public/sounds/, plan §5.8).
 export type SoundName = 'move' | 'capture' | 'check' | 'start' | 'end';
 
 let muted = localStorage.getItem('kc-muted') === '1';
@@ -21,10 +21,10 @@ export function playSound(name: SoundName): void {
     audio.preload = 'auto';
     cache.set(name, audio);
   }
-  // 연타 시 겹쳐 재생되도록 클론 사용
+  // Use a clone so rapid consecutive moves can overlap
   const node = audio.cloneNode() as HTMLAudioElement;
   node.volume = 0.9;
   void node.play().catch(() => {
-    /* 사용자 제스처 전 자동재생 차단은 무시 */
+    /* ignore autoplay blocking before a user gesture */
   });
 }

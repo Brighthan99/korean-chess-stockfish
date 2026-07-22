@@ -6,10 +6,10 @@
   import { game } from './lib/game.svelte';
   import { i18n, t, type Locale } from './lib/i18n.svelte';
 
-  // 첫 화면 = 대국 화면: 미완료 저장 대국이 있으면 복원, 없으면 기본 옵션으로 즉시 시작
+  // First screen = game screen: restore an unfinished saved game if any, otherwise start immediately with default options
   const ready = game.autoStart();
 
-  // 언어 전환 시 문서 제목/lang 속성도 갱신
+  // Update the document title/lang attribute when the language changes
   $effect(() => {
     document.title = t('app.title');
     document.documentElement.lang = i18n.locale;
@@ -20,8 +20,16 @@
     { id: 'en', label: 'English' },
   ];
 
+  // So the overlay doesn't close when a drag ends over the backdrop (e.g. dragging a piece
+  // off the board in the editor to delete it), only a real click that "pressed on the
+  // backdrop and released on the backdrop" closes it.
+  let downOnBackdrop = false;
+  function onBackdropDown(e: PointerEvent): void {
+    downOnBackdrop = e.target === e.currentTarget;
+  }
   function onBackdropClick(e: MouseEvent): void {
-    if (e.target === e.currentTarget) game.closeOverlay();
+    if (downOnBackdrop && e.target === e.currentTarget) game.closeOverlay();
+    downOnBackdrop = false;
   }
 
   function onKeydown(e: KeyboardEvent): void {
@@ -53,7 +61,7 @@
 
     {#if game.overlay}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <div class="backdrop" role="presentation" onclick={onBackdropClick}>
+      <div class="backdrop" role="presentation" onpointerdown={onBackdropDown} onclick={onBackdropClick}>
         <div class="modal" role="dialog" aria-modal="true">
           <button class="close" aria-label={t('modal.close')} onclick={() => game.closeOverlay()}>✕</button>
           {#if game.overlay === 'setup'}
@@ -139,7 +147,7 @@
     flex: 0 1 560px;
     width: min(92vw, 560px);
   }
-  /* 레이오버 (새 대국 옵션 / 보드 에디터) */
+  /* Overlay (new game options / board editor) */
   .backdrop {
     position: fixed;
     inset: 0;

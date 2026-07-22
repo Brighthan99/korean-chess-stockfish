@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Chessground } from 'chessgroundx/chessground.js';
+  import { dragNewPiece } from 'chessgroundx/drag.js';
+  import { getKeyAtDomPos } from 'chessgroundx/board.js';
   import type { Api } from 'chessgroundx/api.js';
   import type * as cg from 'chessgroundx/types.js';
   import { game, type Ruleset, type KomiSide } from '../lib/game.svelte';
@@ -9,8 +11,8 @@
   import { keyToUci, pieceKo, pieceEn } from '../lib/notation';
   import { i18n, t } from '../lib/i18n.svelte';
 
-  // 팔레트 브러시: null = 드래그 이동 모드
-  type Brush = { color: cg.Color; role: cg.Role } | 'erase' | null;
+  // Palette selection (for click-to-place). Drag-move, delete, and drag-add are always active.
+  type Brush = { color: cg.Color; role: cg.Role } | null;
 
   const ROLES: { role: cg.Role; letter: string }[] = [
     { role: 'k-piece' as cg.Role, letter: 'k' },
@@ -22,18 +24,18 @@
     { role: 'p-piece' as cg.Role, letter: 'p' },
   ];
 
-  // 대국 중에 열면 현재 국면에서 편집을 시작한다 (없으면 기본 차림)
+  // When opened mid-game, start editing from the current position (default opening setup otherwise)
   const initialBoard = (game.boardFen || DEFAULT_START_FEN).split(' ')[0] ?? '';
 
   let el: HTMLElement;
   let api: Api | undefined;
   let brush = $state<Brush>(null);
-  let sideToMove = $state<'w' | 'b'>(game.boardFen ? game.turn : 'w');
-  let orientation = $state<'w' | 'b'>(game.orientation);
+  /** Selected square for keyboard deletion (selected by clicking a piece while the brush is off) */
+  let selectedKey = $state<cg.Key | null>(null);
   let fenText = $state(initialBoard);
   let invalid = $state(false);
   let warning = $state<string | null>(null);
-  // 되돌리기용 — 항상 제약을 만족하는 마지막 배치
+  // For reverting — the last placement that satisfies all constraints
   let lastValid = initialBoard;
 
   function violationText(v: EditorViolation): string {
@@ -41,18 +43,43 @@
     return v.type === 'palace' ? t('editor.palaceOnly') : t('editor.tooMany', { piece: name, n: v.limit ?? 0 });
   }
 
-  // 대국 옵션
-  let playMode = $state<'ai-cho' | 'ai-han' | 'manual'>('ai-cho');
-  let aiMovetime = $state(1000);
-  let ruleset = $state<Ruleset>('janggi');
-  // 임의 배치는 후수 덤을 알 수 없으므로 기본 없음, 받는 쪽·점수를 직접 지정 (기획서 §5.4)
-  let komiSide = $state<KomiSide>('none');
-  let komiAmount = $state<'default' | 'custom'>('default');
-  let komiCustom = $state(1.5);
+  // ---- Game options (last-used values remembered: kc-editor) ----
+  const savedOpts = ((): Record<string, unknown> => {
+    try {
+      return JSON.parse(localStorage.getItem('kc-editor') ?? '{}') as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  })();
+  const pick = <T,>(v: unknown, allowed: readonly T[], dflt: T): T =>
+    allowed.includes(v as T) ? (v as T) : dflt;
 
   const RULESET_IDS: Ruleset[] = ['janggi', 'janggitraditional', 'janggimodern', 'janggicasual'];
 
-  /** 보드 상태를 읽어 제약 검사 — 위반이면 마지막 유효 배치로 되돌린다 (드래그 경로 방어). */
+  let playMode = $state<'ai-cho' | 'ai-han' | 'manual'>(
+    pick(savedOpts.playMode, ['ai-cho', 'ai-han', 'manual'] as const, 'ai-cho'),
+  );
+  // Remember side to move and board orientation too — fall back to the current game only when no saved value exists
+  let sideToMove = $state<'w' | 'b'>(
+    pick(savedOpts.sideToMove, ['w', 'b'] as const, game.boardFen ? game.turn : 'w'),
+  );
+  let orientation = $state<'w' | 'b'>(pick(savedOpts.orientation, ['w', 'b'] as const, game.orientation));
+  let aiMovetime = $state(pick(savedOpts.aiMovetime, [300, 1000, 3000] as const, 1000));
+  let ruleset = $state<Ruleset>(pick(savedOpts.ruleset, RULESET_IDS, 'janggi'));
+  // Initial default: Han receives komi 1.5 (standard). Receiving side and amount are freely changeable (plan §5.4)
+  let komiSide = $state<KomiSide>(pick(savedOpts.komiSide, ['han', 'cho', 'none'] as const, 'han'));
+  let komiAmount = $state<'default' | 'custom'>(pick(savedOpts.komiAmount, ['default', 'custom'] as const, 'default'));
+  let komiCustom = $state(typeof savedOpts.komiCustom === 'number' && savedOpts.komiCustom >= 0 ? savedOpts.komiCustom : 1.5);
+
+  // Options are saved immediately on change — restored as-is next time even without pressing Start
+  $effect(() => {
+    localStorage.setItem(
+      'kc-editor',
+      JSON.stringify({ playMode, aiMovetime, ruleset, komiSide, komiAmount, komiCustom, sideToMove, orientation }),
+    );
+  });
+
+  /** Read the board state and check constraints — on violation, revert to the last valid placement (guards the drag path). */
   function syncFromBoard(): void {
     if (!api) return;
     const fen = api.getFen();
@@ -62,13 +89,19 @@
       warning = violationText(v);
       return;
     }
-    lastValid = fen;
-    fenText = fen;
+    // Clear the warning/selection only when an actual change occurred.
+    // (On drop, change/dropNewPiece fire back to back; the second call right
+    //  after a violation revert must not wipe the warning we just showed)
+    if (fen !== lastValid) {
+      warning = null;
+      selectedKey = null;
+      lastValid = fen;
+      fenText = fen;
+    }
     invalid = false;
-    warning = null;
   }
 
-  /** 팔레트 배치 사전 검사: 기물 수 상한 + 궁·사의 궁성 제한. */
+  /** Pre-check for palette placement: piece count limits + palace restriction for king/advisor. */
   function canPlace(color: cg.Color, letter: string, key: cg.Key): boolean {
     const sq = keyToUci(key);
     const side: 'w' | 'b' = color === 'white' ? 'w' : 'b';
@@ -80,7 +113,7 @@
     const board = fenBoard(api?.getFen() ?? '');
     let count = 0;
     for (const l of board.values()) if (l === cased) count++;
-    if (board.get(sq) === cased) count--; // 같은 기물 위에 겹쳐 놓으면 개수 불변
+    if (board.get(sq) === cased) count--; // dropping onto the same piece keeps the count unchanged
     const limit = PIECE_LIMITS[letter] ?? 99;
     if (count + 1 > limit) {
       warning = t('editor.tooMany', { piece: i18n.locale === 'ko' ? pieceKo(cased) : pieceEn(cased), n: limit });
@@ -92,11 +125,13 @@
   onMount(() => {
     api = Chessground(el, {
       fen: fenText,
-      orientation: 'white',
+      orientation: orientation === 'b' ? 'black' : 'white',
       coordinates: false,
       dimensions: { width: 9, height: 10 },
       animation: { enabled: true, duration: 120 },
-      highlight: { lastMove: false, check: false },
+      // Reuse the lastMove highlight as the "selection marker" (chessground's built-in
+      // selection can trigger click-to-move, so we avoid it)
+      highlight: { lastMove: true, check: false },
       premovable: { enabled: false },
       movable: { free: true, color: 'both', showDests: false },
       draggable: { enabled: true, deleteOnDropOff: true, showGhost: true },
@@ -104,43 +139,113 @@
       drawable: { enabled: false },
       events: {
         change: syncFromBoard,
-        select: (key: cg.Key) => {
-          if (!api || brush === null) return;
-          if (brush === 'erase') {
-            api.setPieces(new Map([[key, undefined]]) as cg.PiecesDiff);
-          } else {
-            const letter = brush.role[0] ?? '';
-            if (!canPlace(brush.color, letter, key)) {
-              api.selectSquare(null);
-              return;
-            }
-            api.setPieces(new Map([[key, { role: brush.role, color: brush.color }]]) as cg.PiecesDiff);
-          }
-          api.selectSquare(null); // 내장 선택 상태 제거 (클릭-이동 방지)
-          syncFromBoard();
-        },
+        // Pieces dropped by dragging from the palette go through the same validation path
+        dropNewPiece: () => syncFromBoard(),
       },
     });
     return () => api?.destroy();
   });
 
-  // 브러시 상태에 따라 클릭/드래그 모드 전환.
-  // 브러시 모드에서는 chessground 내장 클릭-이동(free move)이 배치 핸들러와
-  // 충돌하지 않도록 movable.free를 꺼서 이동을 완전히 차단한다.
-  $effect(() => {
-    if (!api) return;
-    if (brush === null) {
-      api.set({ draggable: { enabled: true }, selectable: { enabled: false }, movable: { free: true } });
-    } else {
-      api.set({ draggable: { enabled: false }, selectable: { enabled: true }, movable: { free: false } });
-    }
-    api.selectSquare(null);
-    warning = null;
-  });
-
-  // 보드 방향 선택 반영
+  // Apply the board orientation choice
   $effect(() => {
     api?.set({ orientation: orientation === 'b' ? 'black' : 'white' });
+  });
+
+  // ---- Palette: drag to add to the board + click to select, then click the board to place ----
+
+  /**
+   * Pressing a palette button: (1) selects/deselects the brush (pressing the same piece
+   * again deselects) + (2) starts dragging a new piece (drop on the board to add/replace,
+   * drop outside to cancel).
+   * The drag ghost follows the cursor so the mouseup target is no longer the button,
+   * hence selection is handled at mousedown time instead of on the click event.
+   */
+  function paletteDown(color: cg.Color, role: cg.Role, e: MouseEvent | TouchEvent): void {
+    if (!api) return;
+    brush = brush && brush.color === color && brush.role === role ? null : { color, role };
+    warning = null;
+    if (e.cancelable) e.preventDefault();
+    dragNewPiece(api.state, { role, color }, false, e as cg.MouchEvent, undefined, true);
+    // chessgroundx bug workaround: drag end does not pass the force flag to userMove,
+    // so dropping a new piece on an "occupied square" is silently rejected. Check the
+    // drop point ourselves and finish the replacement on occupied squares (empty
+    // squares are handled correctly by chessground).
+    const onUp = (ev: MouseEvent | TouchEvent): void => {
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchend', onUp);
+      setTimeout(() => finishPaletteDrop(color, role, ev), 0); // run after cg end()
+    };
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchend', onUp);
+  }
+
+  function finishPaletteDrop(color: cg.Color, role: cg.Role, ev: MouseEvent | TouchEvent): void {
+    if (!api) return;
+    const t = 'changedTouches' in ev ? ev.changedTouches[0] : ev;
+    if (!t) return;
+    const key = getKeyAtDomPos(
+      [t.clientX, t.clientY],
+      orientation === 'w',
+      el.getBoundingClientRect(),
+      { width: 9, height: 10 },
+    );
+    if (!key) return; // drop outside the board = cancel
+    const letter = role[0] ?? '';
+    const cased = color === 'white' ? letter.toUpperCase() : letter;
+    const occupant = fenBoard(api.getFen()).get(keyToUci(key));
+    if (!occupant || occupant === cased) return; // empty square (already handled) or same piece: nothing to do
+    api.setPieces(new Map([[key, { role, color }]]) as cg.PiecesDiff);
+    syncFromBoard();
+  }
+
+  // Board click-to-place: remember the press position and use movement distance to distinguish from a drag
+  let downAt: [number, number] | null = null;
+  function boardDown(e: PointerEvent): void {
+    downAt = [e.clientX, e.clientY];
+  }
+  function boardClick(e: MouseEvent): void {
+    if (!api) return;
+    if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 8) return; // it was a drag
+    const key = getKeyAtDomPos(
+      [e.clientX, e.clientY],
+      orientation === 'w',
+      el.getBoundingClientRect(),
+      { width: 9, height: 10 },
+    );
+    if (!key) return;
+    // Clicking a piece on the board always selects that piece (brush is deselected).
+    // To place on top of an existing piece, drag it from the palette instead.
+    const piece = fenBoard(api.getFen()).get(keyToUci(key));
+    if (piece) {
+      brush = null;
+      selectedKey = key !== selectedKey ? key : null;
+      return;
+    }
+    // Empty square: place if a brush is active, otherwise clear the selection
+    if (brush) {
+      const letter = brush.role[0] ?? '';
+      if (!canPlace(brush.color, letter, key)) return;
+      api.setPieces(new Map([[key, { role: brush.role, color: brush.color }]]) as cg.PiecesDiff);
+      syncFromBoard();
+      return;
+    }
+    selectedKey = null;
+  }
+
+  /** Delete the selected piece with Delete/Backspace. */
+  function onKeydown(e: KeyboardEvent): void {
+    if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+    const tag = (document.activeElement?.tagName ?? '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return; // ignore while typing in FEN etc.
+    if (!api || !selectedKey) return;
+    e.preventDefault();
+    api.setPieces(new Map([[selectedKey, undefined]]) as cg.PiecesDiff);
+    syncFromBoard();
+  }
+
+  // Selection marker (reusing the lastMove highlight)
+  $effect(() => {
+    api?.set({ lastMove: selectedKey ? [selectedKey] : [] });
   });
 
   function setBoardFen(fen: string): void {
@@ -181,30 +286,30 @@
   }
 </script>
 
+<svelte:window onkeydown={onKeydown} />
+
 <div class="editor janggi kakao">
   <h2>{t('editor.title')}</h2>
   <p class="hint">{t('editor.hint')}</p>
 
   <div class="layout">
     <div class="board-col">
-      <div class="board-shell">
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="board-shell" role="presentation" onpointerdown={boardDown} onclick={boardClick}>
         <div class="board" bind:this={el}></div>
       </div>
     </div>
 
     <div class="side">
       <div class="palette">
-        <div class="row">
-          <button class="tool" class:active={brush === null} onclick={() => (brush = null)}>{t('editor.moveMode')}</button>
-          <button class="tool" class:active={brush === 'erase'} onclick={() => (brush = 'erase')}>{t('editor.eraser')}</button>
-        </div>
         <div class="row pieces">
           {#each ROLES as r (r.letter)}
             <button
               class="pbtn"
               aria-label={`cho-${r.letter}`}
-              class:active={brush !== null && brush !== 'erase' && brush.color === 'white' && brush.role === r.role}
-              onclick={() => (brush = { color: 'white', role: r.role })}
+              class:active={brush !== null && brush.color === 'white' && brush.role === r.role}
+              onmousedown={e => paletteDown('white', r.role, e)}
+              ontouchstart={e => paletteDown('white', r.role, e)}
             >
               <piece class="{r.letter}-piece white"></piece>
             </button>
@@ -215,8 +320,9 @@
             <button
               class="pbtn"
               aria-label={`han-${r.letter}`}
-              class:active={brush !== null && brush !== 'erase' && brush.color === 'black' && brush.role === r.role}
-              onclick={() => (brush = { color: 'black', role: r.role })}
+              class:active={brush !== null && brush.color === 'black' && brush.role === r.role}
+              onmousedown={e => paletteDown('black', r.role, e)}
+              ontouchstart={e => paletteDown('black', r.role, e)}
             >
               <piece class="{r.letter}-piece black"></piece>
             </button>
@@ -281,7 +387,7 @@
         </div>
       </div>
 
-      <!-- 임의 배치는 후수 덤을 알 수 없으므로 받는 쪽·점수를 직접 지정 (기획서 §5.4) -->
+      <!-- With an arbitrary placement the second player's komi is unknown, so specify the receiving side and amount directly (plan §5.4) -->
       <div class="opt">
         <span class="opt-label">{t('setup.komi')}</span>
         <div class="seg">
@@ -379,8 +485,9 @@
     border: 1.5px solid var(--line);
     border-radius: 8px;
     background: #fff;
-    cursor: pointer;
+    cursor: grab;
     padding: 3px;
+    touch-action: none;
   }
   .pbtn.active {
     border-color: var(--cho);
@@ -393,6 +500,7 @@
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
+    pointer-events: none;
   }
   .tool {
     border: 1.5px solid var(--line);
@@ -401,11 +509,6 @@
     padding: 6px 12px;
     font-size: 13.5px;
     cursor: pointer;
-  }
-  .tool.active {
-    border-color: var(--cho);
-    background: var(--cho);
-    color: #fff;
   }
   .opt {
     display: flex;

@@ -1,10 +1,10 @@
-// 다국어(i18n) — 한국어/영어. locale은 Svelte 5 runes 반응형 상태라
-// 템플릿/derived에서 t()를 호출하면 언어 전환 시 자동으로 다시 렌더링된다.
+// Internationalization (i18n) — Korean/English. locale is Svelte 5 runes reactive state,
+// so t() calls in templates/derived re-render automatically when the language changes.
 
 export type Locale = 'ko' | 'en';
 
 const MESSAGES: Record<string, Record<Locale, string>> = {
-  // 앱 공통
+  // App common
   'app.name': { ko: '한국 장기', en: 'Janggi' },
   'app.subtitle': { ko: 'Korean Chess', en: 'Korean Chess' },
   'app.title': { ko: '한국 장기 — Korean Chess', en: 'Janggi — Korean Chess' },
@@ -16,7 +16,7 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'footer.sourceLink': { ko: '소스 코드', en: 'source code' },
   'footer.sourcePost': { ko: '는 GPL-3.0으로 공개됩니다', en: ' is published under GPL-3.0' },
 
-  // 차림 선택
+  // Opening setup selection
   'setup.choSetup': { ko: '초 차림', en: 'Cho (Blue) setup' },
   'setup.hanSetup': { ko: '한 차림', en: 'Han (Red) setup' },
   'setup.hanSeat': { ko: '(한 자리 기준)', en: "(from Han's side)" },
@@ -56,7 +56,7 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'setup.komiNoteNone': { ko: '(덤 없음)', en: '(no komi)' },
   'setup.start': { ko: '대국 시작', en: 'Start game' },
 
-  // 대국 패널
+  // Game panel
   'side.cho': { ko: '초', en: 'Cho' },
   'side.han': { ko: '한', en: 'Han' },
   'status.aiThinking': { ko: 'AI 생각 중…', en: 'AI thinking…' },
@@ -98,15 +98,13 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'orient.cho': { ko: '초 아래', en: 'Cho at bottom' },
   'orient.han': { ko: '한 아래', en: 'Han at bottom' },
 
-  // 보드 에디터
+  // Board editor
   'setup.editor': { ko: '보드 에디터 (자유 배치)', en: 'Board editor (custom position)' },
   'editor.title': { ko: '보드 에디터', en: 'Board editor' },
   'editor.hint': {
-    ko: '기물을 드래그해 옮기고, 팔레트에서 골라 클릭으로 배치하세요. 보드 밖으로 드래그하면 제거됩니다.',
-    en: 'Drag pieces to move them; pick from the palette and click a square to place. Drag off the board to remove.',
+    ko: '이동: 기물을 드래그. 추가: 팔레트의 기물을 보드로 드래그(기존 기물 위에 놓으면 대치)하거나, 팔레트를 클릭해 고른 뒤 빈 칸을 클릭. 삭제: 보드 밖으로 드래그하거나, 보드의 기물을 클릭해 선택한 뒤 Delete/Backspace 키.',
+    en: 'Move: drag a piece. Add: drag from the palette onto the board (dropping on a piece replaces it), or click a palette piece then click an empty square. Delete: drag off the board, or click a board piece and press Delete/Backspace.',
   },
-  'editor.moveMode': { ko: '이동', en: 'Move' },
-  'editor.eraser': { ko: '지우개', en: 'Eraser' },
   'editor.reset': { ko: '기본 차림', en: 'Default setup' },
   'editor.clear': { ko: '비우기', en: 'Clear board' },
   'editor.sideToMove': { ko: '먼저 둘 쪽', en: 'Side to move' },
@@ -130,7 +128,7 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'komi.custom': { ko: '직접 입력', en: 'Custom' },
   'panel.komi': { ko: '덤', en: 'Komi (Deom)' },
 
-  // 이어두기 / 기보 불러오기 / 내보내기
+  // Resume / game record import / export
   'setup.resume': { ko: '이어두기', en: 'Resume' },
   'resume.desc': { ko: '저장된 대국 — {n}수 · {date}', en: 'Saved game — {n} moves · {date}' },
   'import.title': { ko: '기보 불러오기', en: 'Load game record' },
@@ -149,7 +147,7 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'export.pgn': { ko: 'PGN 저장', en: 'Save PGN' },
   'export.gib': { ko: '.gib 저장', en: 'Save .gib' },
 
-  // NNUE (강한 AI — 사용자 업로드)
+  // NNUE (strong AI — user upload)
   'nnue.title': { ko: '강한 AI (NNUE)', en: 'Strong AI (NNUE)' },
   'nnue.desc': {
     ko: '공식 페이지에서 장기용 NNUE 파일(약 11MB, janggi-….nnue)을 내려받아 선택하면 AI가 크게 강해집니다 (+1128 Elo). 파일은 이 브라우저에 저장되어 다음 방문부터 자동 적용됩니다.',
@@ -184,7 +182,7 @@ class I18n {
 
   t(key: string, params?: Record<string, string | number>): string {
     const entry = MESSAGES[key];
-    let s = entry ? entry[this.locale] : key; // 미등록 키는 키/원문 그대로 노출
+    let s = entry ? entry[this.locale] : key; // unknown keys are shown as-is
     if (params) {
       for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
     }

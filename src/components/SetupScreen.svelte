@@ -5,32 +5,54 @@
   import { i18n, t } from '../lib/i18n.svelte';
   import { parseGibo, readGiboFile } from '../lib/gibo';
 
-  // 최근 선택 복원
-  const saved = ((): Record<string, string> => {
+  // Restore last-used options (kc-setup)
+  const saved = ((): Record<string, unknown> => {
     try {
-      return JSON.parse(localStorage.getItem('kc-setup') ?? '{}') as Record<string, string>;
+      return JSON.parse(localStorage.getItem('kc-setup') ?? '{}') as Record<string, unknown>;
     } catch {
       return {};
     }
   })();
+  const pick = <T,>(v: unknown, allowed: readonly T[], dflt: T): T =>
+    allowed.includes(v as T) ? (v as T) : dflt;
 
-  let choSetup = $state<SetupId>((saved.cho as SetupId) ?? 'inner');
-  let hanSetup = $state<SetupId>((saved.han as SetupId) ?? 'inner');
-  let firstMover = $state<'w' | 'b'>('w');
-  let playMode = $state<'ai-cho' | 'ai-han' | 'manual'>('ai-cho');
-  let aiMovetime = $state(1000);
-  let ruleset = $state<Ruleset>('janggi');
-  let orientation = $state<'w' | 'b'>('w');
-  let komiSide = $state<KomiSide>('han');
-
-  // 대국 방식이 바뀌면 보드 방향 기본값을 내 기물이 아래로 오게 따라간다 (이후 수동 변경 가능)
-  $effect(() => {
-    orientation = playMode === 'ai-han' ? 'b' : 'w';
-  });
-
+  const SETUP_IDS = ['inner', 'left', 'right', 'outer'] as const;
   const RULESET_IDS: Ruleset[] = ['janggi', 'janggitraditional', 'janggimodern', 'janggicasual'];
 
-  // 기보 불러오기
+  let choSetup = $state<SetupId>(pick(saved.cho, SETUP_IDS, 'inner'));
+  let hanSetup = $state<SetupId>(pick(saved.han, SETUP_IDS, 'inner'));
+  let firstMover = $state<'w' | 'b'>(pick(saved.firstMover, ['w', 'b'] as const, 'w'));
+  let playMode = $state<'ai-cho' | 'ai-han' | 'manual'>(
+    pick(saved.playMode, ['ai-cho', 'ai-han', 'manual'] as const, 'ai-cho'),
+  );
+  let aiMovetime = $state(pick(saved.aiMovetime, [300, 1000, 3000] as const, 1000));
+  let ruleset = $state<Ruleset>(pick(saved.ruleset, RULESET_IDS, 'janggi'));
+  // svelte-ignore state_referenced_locally -- only used to compute the initial default (intended)
+  let orientation = $state<'w' | 'b'>(
+    pick(saved.orientation, ['w', 'b'] as const, playMode === 'ai-han' ? 'b' : 'w'),
+  );
+  let komiSide = $state<KomiSide>(pick(saved.komiSide, ['han', 'cho', 'none'] as const, 'han'));
+
+  // Only when the play mode "changes" does the default board orientation follow so my pieces sit at the bottom
+  // (compare with the previous value so the restored value isn't overwritten right after mount)
+  // Options are saved immediately on change — restored as-is next time even without pressing Start
+  $effect(() => {
+    localStorage.setItem(
+      'kc-setup',
+      JSON.stringify({ cho: choSetup, han: hanSetup, firstMover, playMode, aiMovetime, ruleset, orientation, komiSide }),
+    );
+  });
+
+  // svelte-ignore state_referenced_locally -- previous value for change detection (intended)
+  let lastPlayMode = playMode;
+  $effect(() => {
+    if (playMode !== lastPlayMode) {
+      lastPlayMode = playMode;
+      orientation = playMode === 'ai-han' ? 'b' : 'w';
+    }
+  });
+
+  // Game record (gibo) import
   let showPaste = $state(false);
   let pasteText = $state('');
   let importError = $state<string | null>(null);
@@ -75,7 +97,7 @@
     (ev.target as HTMLInputElement).value = '';
   }
 
-  // 차림 미리보기 문자열 — 뒷줄: 차 [마/상] [마/상] 사 궁 사 [마/상] [마/상] 차
+  // Opening setup preview string — back rank: R [H/E] [H/E] A K A [H/E] [H/E] R
   const PREVIEW_KO: Record<string, string> = { '마': '마', '상': '상' };
   const PREVIEW_EN: Record<string, string> = { '마': 'H', '상': 'E' };
   function preview(pattern: string): string {
@@ -86,7 +108,6 @@
   }
 
   function start(): void {
-    localStorage.setItem('kc-setup', JSON.stringify({ cho: choSetup, han: hanSetup }));
     void game.startGame({ choSetup, hanSetup, firstMover, ...currentConfig() });
   }
 </script>

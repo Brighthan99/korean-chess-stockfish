@@ -21,7 +21,7 @@
   }
 
   function stamp(): string {
-    // 로컬 날짜 (gibo.ts의 헤더 날짜와 동일 기준)
+    // Local date (same convention as the header date in gibo.ts)
     const d = new Date();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
@@ -62,7 +62,7 @@
       };
     }
     const cp = e.cp ?? 0;
-    // 시그모이드로 0~1 비율 변환 (초 우세 = 1 쪽)
+    // Convert to a 0-1 ratio via sigmoid (Cho advantage = toward 1)
     const ratio = 1 / (1 + Math.exp(-cp / 300));
     return {
       text: cp >= 0 ? t('eval.choAhead', { n: (cp / 100).toFixed(1) }) : t('eval.hanAhead', { n: (-cp / 100).toFixed(1) }),
@@ -104,7 +104,7 @@
     </div>
   </div>
 
-  <!-- 덤 받는 쪽 — 대국 중에도 변경 가능 (점수판 즉시 반영) -->
+  <!-- Komi-receiving side — changeable even mid-game (scoreboard updates immediately) -->
   <div class="komi-row">
     <span class="komi-label">{t('panel.komi')} {game.komi}</span>
     <div class="komi-seg">
@@ -201,7 +201,7 @@
 </aside>
 
 <style>
-  /* 패널 폭을 고정해 형세판단 문자열 길이가 변해도 레이아웃이 움직이지 않게 한다 */
+  /* Fix the panel width so the layout doesn't shift when the evaluation string length changes */
   .panel {
     display: flex;
     flex-direction: column;
@@ -335,7 +335,7 @@
     background: var(--cho);
     transition: width 0.3s;
   }
-  /* 평가 텍스트/PV는 높이·줄수를 고정해 내용 변화로 세로 흔들림이 없게 한다 */
+  /* Eval text/PV have fixed height/line counts so content changes cause no vertical jitter */
   .eval-text {
     display: flex;
     justify-content: space-between;
@@ -360,7 +360,7 @@
     color: var(--sub);
     word-break: break-all;
     line-height: 1.5;
-    height: 4.5em; /* 3줄 고정 */
+    height: 4.5em; /* fixed at 3 lines */
     overflow: hidden;
   }
   .buttons {
@@ -414,7 +414,7 @@
     opacity: 0.45;
     cursor: default;
   }
-  /* NNUE (강한 AI) */
+  /* NNUE (strong AI) */
   .nnue {
     border: 1px solid var(--line);
     border-radius: 10px;

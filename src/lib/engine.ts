@@ -1,18 +1,18 @@
-// Fairy-Stockfish WASM 엔진 래퍼. UCI 텍스트로 통신한다. (기획서 §3.2)
-// /engine/stockfish.js 는 클래식 스크립트로 로드되어 전역 Stockfish 팩토리를 만든다.
-// pthread 워커(stockfish.worker.js)와 wasm은 스크립트 위치 기준 상대 경로로 로드된다.
+// Fairy-Stockfish WASM engine wrapper. Communicates via UCI text. (plan §3.2)
+// /engine/stockfish.js is loaded as a classic script and creates the global Stockfish factory.
+// The pthread worker (stockfish.worker.js) and wasm are loaded via paths relative to the script location.
 
 export interface SearchInfo {
   depth: number;
-  /** 수(手)를 둘 차례 기준 centipawn 점수 */
+  /** centipawn score from the side to move's perspective */
   cp?: number;
-  /** 외통까지 수(手) 수. 양수 = 두는 쪽이 이김 */
+  /** moves until mate. Positive = side to move wins */
   mate?: number;
   pv: string[];
 }
 
 export interface SearchResult {
-  best: string | null; // '(none)'이면 null
+  best: string | null; // null if '(none)'
   info: SearchInfo | null;
 }
 
@@ -47,7 +47,7 @@ export class Engine {
   }
 
   private async doInit(): Promise<void> {
-    // 에러 메시지는 i18n 키로 던진다 — UI에서 t()로 번역 (미등록 키는 그대로 표시됨)
+    // Error messages are thrown as i18n keys — translated with t() in the UI (unknown keys shown as-is)
     if (typeof SharedArrayBuffer === 'undefined') {
       throw new Error('error.nosab');
     }
@@ -80,7 +80,7 @@ export class Engine {
     this.sf?.postMessage(cmd);
   }
 
-  /** cmd를 보내고 특정 응답 라인이 올 때까지 기다린다. */
+  /** Send cmd and wait until the matching response line arrives. */
   private request(cmd: string, done: (line: string) => boolean): Promise<void> {
     return new Promise(resolve => {
       const h: LineHandler = line => {
@@ -99,8 +99,8 @@ export class Engine {
   }
 
   /**
-   * NNUE 넷 적용 — WASM 가상 파일시스템에 기록 후 EvalFile 지정.
-   * 파일명이 variant 감지에 쓰이므로 janggi*로 시작해야 한다.
+   * Apply an NNUE net — write it to the WASM virtual filesystem, then set EvalFile.
+   * The filename is used for variant detection, so it must start with janggi*.
    */
   async setNnue(name: string, bytes: Uint8Array): Promise<void> {
     await this.init();
@@ -112,7 +112,7 @@ export class Engine {
     await this.isReady();
   }
 
-  /** NNUE 비활성화 — 클래식 평가로 복귀. */
+  /** Disable NNUE — fall back to classical evaluation. */
   async disableNnue(): Promise<void> {
     if (!this.sf) return;
     await this.stopSearch();
@@ -120,7 +120,7 @@ export class Engine {
     await this.isReady();
   }
 
-  /** 새 대국 준비: 룰셋(variant) 설정 + ucinewgame. */
+  /** Prepare a new game: set the ruleset (variant) + ucinewgame. */
   async newGame(variant: string): Promise<void> {
     await this.init();
     await this.stopSearch();
@@ -137,8 +137,8 @@ export class Engine {
   }
 
   /**
-   * 탐색 시작. movetimeMs가 있으면 시간 제한, 없으면 infinite(분석 모드).
-   * bestmove가 나오면 resolve. infinite는 stopSearch() 호출 시 종료된다.
+   * Start a search. Time-limited if movetimeMs is given, otherwise infinite (analysis mode).
+   * Resolves on bestmove. Infinite search ends when stopSearch() is called.
    */
   search(fen: string, moves: string[], movetimeMs: number | null, onInfo?: (i: SearchInfo) => void): Promise<SearchResult> {
     return new Promise((resolve, reject) => {
@@ -172,7 +172,7 @@ export class Engine {
     });
   }
 
-  /** 진행 중인 탐색을 멈추고 bestmove 수신까지 기다린다. */
+  /** Stop the running search and wait for the bestmove reply. */
   async stopSearch(): Promise<void> {
     if (!this.searching || !this.sf) return;
     await new Promise<void>(resolve => {

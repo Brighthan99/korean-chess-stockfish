@@ -46,13 +46,13 @@
     return () => api?.destroy();
   });
 
-  // 게임 상태 변화 → 보드 갱신
+  // Game state change → board update
   $effect(() => {
     const cfg = buildConfig();
     api?.set(cfg);
   });
 
-  // AI 추천 수 화살표
+  // Arrow for the AI-suggested move
   $effect(() => {
     const hint = game.hint;
     api?.setAutoShapes(

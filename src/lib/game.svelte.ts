@@ -1,4 +1,4 @@
-// 대국 상태 컨트롤러 (Svelte 5 runes). 규칙 판정은 ffish, AI는 engine이 담당한다.
+// Game state controller (Svelte 5 runes). ffish handles rule adjudication; engine handles the AI.
 import { initFfish, type FfishModule, type FfishBoard } from './ffish';
 import { engine, type SearchInfo } from './engine';
 import { buildStartFen, type SetupId } from './setups';
@@ -11,7 +11,7 @@ import { saveNnue, loadNnue, deleteNnue, isValidNnueFile } from './nnue';
 export type Mode = 'ai' | 'manual';
 export type Ruleset = 'janggi' | 'janggitraditional' | 'janggimodern' | 'janggicasual';
 
-// 표기는 렌더링 시 locale에 따라 생성하므로 메타데이터만 저장한다.
+// Notation is generated per locale at render time, so only metadata is stored.
 export interface MoveRecord {
   ply: number;
   uci: string;
@@ -23,14 +23,14 @@ export interface MoveRecord {
 
 export interface GameConfig {
   mode: Mode;
-  humanColor: 'w' | 'b'; // mode === 'ai'일 때 사람이 두는 쪽
+  humanColor: 'w' | 'b'; // side the human plays when mode === 'ai'
   aiMovetime: number;
   ruleset: Ruleset;
-  /** 덤 점수. 기본 차림은 1.5, 자유 배치는 사용자 지정. (기획서 §5.4) */
+  /** Komi points. 1.5 for default setups, user-defined for custom positions. (plan §5.4) */
   komi: number;
-  /** 덤을 받는 쪽 — 기본은 한(후수 보상). */
+  /** Side receiving komi — defaults to Han (second-mover compensation). */
   komiSide?: KomiSide;
-  /** 보드 방향 — 아래쪽에 놓이는 진영. 생략 시 AI 모드는 내 기물, 그 외 초. */
+  /** Board orientation — the side placed at the bottom. Defaults to my side in AI mode, otherwise Cho. */
   orientation?: 'w' | 'b';
 }
 
@@ -44,28 +44,28 @@ export interface SetupChoice extends GameConfig {
 
 class GameState {
   phase = $state<'boot' | 'play'>('boot');
-  /** 대국 화면 위에 뜨는 레이오버: 새 대국 옵션 / 보드 에디터 */
+  /** Overlay above the game screen: new-game options / board editor */
   overlay = $state<'setup' | 'edit' | null>(null);
 
-  // 설정
+  // Settings
   mode = $state<Mode>('ai');
   humanColor = $state<'w' | 'b'>('w');
   aiMovetime = $state(1000);
   ruleset = $state<Ruleset>('janggi');
   komi = $state(HAN_KOMI);
-  /** 덤을 받는 쪽 — 대국 중에도 변경 가능. */
+  /** Side receiving komi — changeable mid-game. */
   komiSide = $state<KomiSide>('han');
-  /** 보드 방향 — 아래쪽 진영. 대국 중에도 전환 가능. */
+  /** Board orientation — bottom side. Can be flipped mid-game. */
   orientation = $state<'w' | 'b'>('w');
 
-  // 대국 상태
+  // Game state
   startFen = $state('');
   moves = $state<MoveRecord[]>([]);
-  redoStack = $state<string[]>([]); // 물린 수 (재생 순서대로)
+  redoStack = $state<string[]>([]); // undone moves (in replay order)
   boardFen = $state('');
   turn = $state<'w' | 'b'>('w');
-  lastMove = $state<[string, string] | null>(null); // cg 키
-  checkKey = $state<string | null>(null); // 장군 상태의 왕 위치 (cg 키)
+  lastMove = $state<[string, string] | null>(null); // cg keys
+  checkKey = $state<string | null>(null); // king square when in check (cg key)
   bikjang = $state(false);
   canPass = $state(false);
   result = $state<string | null>(null); // '1-0' | '0-1' | '1/2-1/2'
@@ -73,26 +73,26 @@ class GameState {
   score = $state({ cho: 72, han: 72 + HAN_KOMI });
   dests = $state<Map<string, string[]>>(new Map());
 
-  // 엔진 상태
+  // Engine state
   engineReady = $state(false);
   engineError = $state<string | null>(null);
   thinking = $state(false);
 
-  // NNUE (강한 AI — 사용자 업로드 방식)
-  nnueName = $state<string | null>(null); // IndexedDB에 저장된 넷 파일명
+  // NNUE (strong AI — user-upload approach)
+  nnueName = $state<string | null>(null); // net filename stored in IndexedDB
   nnueActive = $state(false);
   nnueBusy = $state(false);
-  nnueError = $state<string | null>(null); // i18n 키
-  hint = $state<[string, string] | null>(null); // cg 키
+  nnueError = $state<string | null>(null); // i18n key
+  hint = $state<[string, string] | null>(null); // cg keys
   analysisOn = $state(false);
   evalInfo = $state<SearchInfo | null>(null);
   evalPv = $state('');
 
   private ffishMod: FfishModule | null = null;
   private board: FfishBoard | null = null;
-  private seq = 0; // 물리기/새 대국 시 진행 중 AI 응답을 무효화
+  private seq = 0; // invalidates in-flight AI replies on undo/new game
 
-  /** ffish 로드 (앱 시작 시 1회). */
+  /** Load ffish (once at app startup). */
   async init(): Promise<void> {
     this.ffishMod = await initFfish();
   }
@@ -101,7 +101,7 @@ class GameState {
     return this.ffishMod;
   }
 
-  /** 엔진 로드 (첫 대국 시작 시). 실패해도 수동 대국은 가능. */
+  /** Load the engine (on first game start). Manual play still works if it fails. */
   private async ensureEngine(): Promise<boolean> {
     try {
       await engine.init();
@@ -124,16 +124,16 @@ class GameState {
   }
 
   /**
-   * 앱 진입: 끝나지 않은 저장 대국이 있으면 복원, 없으면 기본 옵션으로 즉시 시작.
-   * (기본: 양측 안상차림, 초 선수, AI 상대(내가 초), 1초, 대회 규칙, 덤 1.5)
+   * App entry: restore an unfinished saved game if any, otherwise start immediately with defaults.
+   * (Defaults: inner-elephant setup on both sides, Cho first, vs AI (I play Cho), 1s, tournament rules, komi 1.5)
    */
   async autoStart(): Promise<void> {
     await this.init();
     const saved = loadSavedGame();
-    // 끝나지 않은 대국은 수가 없어도 복원 — 보드 방향·모드·규칙 등 설정 유지
+    // Restore an unfinished game even with no moves — keeps orientation, mode, rules, etc.
     if (saved && !saved.result) {
       if (await this.resumeSaved()) {
-        void this.initNnue(); // 저장된 NNUE 백그라운드 복원
+        void this.initNnue(); // restore saved NNUE in the background
         return;
       }
     }
@@ -147,10 +147,10 @@ class GameState {
       ruleset: 'janggi',
       komi: HAN_KOMI,
     });
-    void this.initNnue(); // 저장된 NNUE 백그라운드 복원
+    void this.initNnue(); // restore saved NNUE in the background
   }
 
-  /** 저장된 NNUE 복원 — 앱 시작 시 호출 (이전에 켜져 있었으면 자동 적용). */
+  /** Restore saved NNUE — called at app start (auto-applied if previously enabled). */
   async initNnue(): Promise<void> {
     const stored = await loadNnue();
     if (!stored) return;
@@ -175,7 +175,7 @@ class GameState {
     }
   }
 
-  /** 사용자가 선택한 .nnue 파일 등록 + 즉시 적용. */
+  /** Register a user-selected .nnue file and apply it immediately. */
   async setNnueFile(file: File): Promise<void> {
     this.nnueError = null;
     if (!isValidNnueFile(file.name, file.size)) {
@@ -188,7 +188,7 @@ class GameState {
     await this.applyNnue(file.name, bytes);
   }
 
-  /** 강한 AI 켜기/끄기. */
+  /** Toggle strong AI on/off. */
   async toggleNnue(): Promise<void> {
     if (this.nnueBusy || !this.engineReady) return;
     if (this.nnueActive) {
@@ -207,7 +207,7 @@ class GameState {
     }
   }
 
-  /** 저장된 넷 삭제. */
+  /** Delete the stored net. */
   async removeNnue(): Promise<void> {
     if (this.nnueBusy) return;
     await deleteNnue();
@@ -220,17 +220,17 @@ class GameState {
     localStorage.removeItem('kc-nnue-on');
   }
 
-  /** 차림 선택으로 대국 시작. */
+  /** Start a game from opening setup selection. */
   async startGame(cfg: SetupChoice): Promise<void> {
     await this.begin(buildStartFen(cfg.choSetup, cfg.hanSetup, cfg.firstMover), cfg);
   }
 
-  /** 임의 FEN(에디터/불러오기)으로 대국 시작. */
+  /** Start a game from an arbitrary FEN (editor/import). */
   async startFromFen(fen: string, cfg: GameConfig): Promise<void> {
     await this.begin(fen, cfg);
   }
 
-  /** 기보 불러오기 — 시작 FEN + 수순 재생 후 이어두기 가능 상태로. */
+  /** Load a game record — replay start FEN + moves, then leave it ready to continue. */
   async loadGame(fen: string, movesUci: string[], cfg: GameConfig): Promise<void> {
     await this.begin(fen, cfg, { silent: true });
     for (const uci of movesUci) {
@@ -241,7 +241,7 @@ class GameState {
     if (this.analysisOn) this.restartAnalysis();
   }
 
-  /** localStorage에 저장된 대국 이어두기. */
+  /** Resume the game saved in localStorage. */
   async resumeSaved(): Promise<boolean> {
     const saved = loadSavedGame();
     if (!saved) return false;
@@ -257,13 +257,13 @@ class GameState {
     return true;
   }
 
-  /** 보드 상하 반전 (대국 중 언제든). */
+  /** Flip the board vertically (anytime during a game). */
   flipOrientation(): void {
     this.orientation = this.orientation === 'w' ? 'b' : 'w';
     this.autosave();
   }
 
-  /** 덤 받는 쪽 변경 (대국 중 언제든) — 점수판 즉시 반영. */
+  /** Change the komi-receiving side (anytime during a game) — scoreboard updates immediately. */
   setKomiSide(side: KomiSide): void {
     this.komiSide = side;
     this.refresh();
@@ -295,7 +295,7 @@ class GameState {
     this.evalPv = '';
     this.refresh();
     this.phase = 'play';
-    this.overlay = null; // 대국이 시작되면 레이오버 닫기
+    this.overlay = null; // close the overlay once the game starts
     if (!opts.silent) playSound('start');
 
     const ok = await this.ensureEngine();
@@ -325,7 +325,7 @@ class GameState {
     saveGame(data);
   }
 
-  /** 보드에서 파생되는 상태를 다시 계산한다. */
+  /** Recompute state derived from the board. */
   private refresh(): void {
     const b = this.board;
     if (!b) return;
@@ -340,7 +340,7 @@ class GameState {
         const mv = parseUci(uci);
         if (!mv) continue;
         if (mv.from === mv.to) {
-          canPass = true; // 한수쉼은 버튼으로 제공
+          canPass = true; // pass is offered via a button
           continue;
         }
         const from = uciToKey(mv.from);
@@ -366,12 +366,12 @@ class GameState {
     if (b.isGameOver()) {
       this.result = b.result();
     } else if (!legal) {
-      // 합법수 없음 = 둘 수 없는 쪽의 패배 (외통)
+      // no legal moves = the side unable to move loses (checkmate)
       this.result = this.turn === 'w' ? '0-1' : '1-0';
     }
   }
 
-  /** 수 적용 코어 (redo/불러오기 포함 공통 경로 — AI 트리거·redo 초기화 없음). */
+  /** Core move application (shared path incl. redo/import — no AI trigger, no redo reset). */
   private applyMove(uci: string, opts: { sound?: boolean } = {}): boolean {
     const b = this.board;
     if (!b || this.result) return false;
@@ -400,7 +400,7 @@ class GameState {
     return true;
   }
 
-  /** 수를 둔다 (사람/AI 공통 진입점 — 새 수이므로 redo 스택은 버린다). */
+  /** Play a move (common entry for human/AI — a new move discards the redo stack). */
   move(uci: string, byAi = false): boolean {
     if (!this.applyMove(uci)) return false;
     this.redoStack = [];
@@ -410,7 +410,7 @@ class GameState {
     return true;
   }
 
-  /** 한수쉼 — 제자리 이동 UCI 수를 찾아 둔다. */
+  /** Pass — find and play the stay-in-place UCI move. */
   pass(): void {
     const b = this.board;
     if (!b || !this.canPass || this.result) return;
@@ -422,7 +422,7 @@ class GameState {
     if (passMove) this.move(passMove);
   }
 
-  /** AI 차례면 탐색을 시작한다. */
+  /** Start a search if it is the AI's turn. */
   private maybeAiMove(): void {
     if (this.mode !== 'ai' || this.result || this.turn !== this.aiColor || !this.engineReady) return;
     const mySeq = this.seq;
@@ -439,7 +439,7 @@ class GameState {
       });
   }
 
-  /** AI 추천 수 — 현재 국면 최선수를 화살표로 표시. */
+  /** AI hint — show the best move in the current position as an arrow. */
   async requestHint(): Promise<void> {
     if (!this.engineReady || this.result || this.thinking) return;
     const mySeq = this.seq;
@@ -457,11 +457,11 @@ class GameState {
     }
   }
 
-  /** 물리기 — AI 모드에서는 사람 차례가 되도록 1~2수 취소. 물린 수는 redo 스택으로. */
+  /** Undo — in AI mode revert 1-2 plies so it is the human's turn. Undone moves go to the redo stack. */
   undo(): void {
     const b = this.board;
     if (!b || this.moves.length === 0) return;
-    this.seq++; // 진행 중 AI 탐색 무효화
+    this.seq++; // invalidate any in-flight AI search
     void engine.stopSearch();
     this.thinking = false;
 
@@ -484,7 +484,7 @@ class GameState {
     if (this.analysisOn) this.restartAnalysis();
   }
 
-  /** 앞으로 — 물린 수 재생. AI 모드에서는 (내 수 + AI 수) 2수씩. */
+  /** Redo — replay undone moves. In AI mode, 2 plies at a time (my move + AI move). */
   redo(): void {
     if (this.redoStack.length === 0 || this.result) return;
     this.seq++;
@@ -502,7 +502,7 @@ class GameState {
     if (this.analysisOn) this.restartAnalysis();
   }
 
-  /** 형세판단 토글 — go infinite 분석. */
+  /** Toggle analysis — go infinite search. */
   toggleAnalysis(): void {
     this.analysisOn = !this.analysisOn;
     if (this.analysisOn) this.restartAnalysis();
@@ -530,7 +530,7 @@ class GameState {
     });
   }
 
-  /** 수(手)를 둘 차례 기준 cp 점수를 초(백) 기준으로 변환. */
+  /** Convert the side-to-move cp score to Cho (white) perspective. */
   evalForCho(): { cp?: number; mate?: number } | null {
     const i = this.evalInfo;
     if (!i) return null;
@@ -540,7 +540,7 @@ class GameState {
     return null;
   }
 
-  /** 기권 — 사람이 기권하면 상대 승. */
+  /** Resign — when the human resigns, the opponent wins. */
   resign(): void {
     if (this.result) return;
     this.seq++;
@@ -553,12 +553,12 @@ class GameState {
     playSound('end');
   }
 
-  /** 새 대국 옵션 레이오버 열기 — 밑의 대국은 그대로 유지된다. */
+  /** Open the new-game options overlay — the game underneath stays intact. */
   newGame(): void {
     this.overlay = 'setup';
   }
 
-  /** 보드 에디터 레이오버 열기. */
+  /** Open the board editor overlay. */
   openEditor(): void {
     this.overlay = 'edit';
   }

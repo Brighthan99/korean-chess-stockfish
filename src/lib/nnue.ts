@@ -1,6 +1,6 @@
-// NNUE 넷 로컬 보관 (사용자 업로드 방식 — 기획서 §3.5, 재배포 없음)
-// 사용자가 공식 페이지에서 받은 .nnue 파일을 업로드하면 IndexedDB에 저장해
-// 재방문 시 다시 업로드하지 않아도 되게 한다. (10.7MB — localStorage 불가)
+// Local NNUE net storage (user-upload approach — plan §3.5, no redistribution)
+// When the user uploads a .nnue file downloaded from the official page, it is stored
+// in IndexedDB so it need not be re-uploaded on revisits. (10.7MB — too big for localStorage)
 
 const DB_NAME = 'kc-nnue';
 const STORE = 'files';
@@ -11,7 +11,7 @@ export interface StoredNnue {
   bytes: ArrayBuffer;
 }
 
-/** 파일명 검증 — 엔진이 파일명 접두사로 variant를 인식하므로 janggi* 필수. */
+/** Validate the filename — the engine detects the variant from the filename prefix, so janggi* is required. */
 export function isValidNnueFile(name: string, size: number): boolean {
   return /^janggi.*\.nnue$/i.test(name) && size > 1_000_000 && size < 100_000_000;
 }
@@ -68,6 +68,6 @@ export async function deleteNnue(): Promise<void> {
       db.close();
     }
   } catch {
-    /* 무시 */
+    /* ignore */
   }
 }

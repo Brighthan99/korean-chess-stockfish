@@ -1,7 +1,7 @@
-// 기보 import/export. (기획서 §7)
-// - PGN: [Variant "Janggi"] + [FEN]/[SetUp], SAN 수순 — ffish로 생성/파싱 (PyChess 호환)
-// - .gib: KJA/장기도사 계열 텍스트 — 대괄호 헤더 + 한국식 좌표 수순 (79졸78, 한수쉼)
-// - 인코딩: 내보내기는 UTF-8, 불러오기는 UTF-8/EUC-KR 자동 감지 (레거시 .gib은 EUC-KR)
+// Game record (gibo) import/export. (plan §7)
+// - PGN: [Variant "Janggi"] + [FEN]/[SetUp], SAN moves — generated/parsed via ffish (PyChess-compatible)
+// - .gib: KJA/JanggiDosa-family text — bracket headers + Korean-style coordinate moves (79졸78, 한수쉼 for pass)
+// - Encoding: export as UTF-8; import auto-detects UTF-8/EUC-KR (legacy .gib is EUC-KR)
 import type { FfishModule, FfishBoard } from './ffish';
 import { fenFromAbsolute, fenPattern, KO_TO_ARR, DEFAULT_START_FEN } from './setups';
 import { kjaMove, parseUci } from './notation';
@@ -12,9 +12,9 @@ export interface ParsedGame {
   moves: string[]; // UCI
 }
 
-// ---------- 공통 ----------
+// ---------- Common ----------
 
-/** 텍스트 파일 다운로드. */
+/** Download a text file. */
 export function download(filename: string, text: string): void {
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -25,7 +25,7 @@ export function download(filename: string, text: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** 기보 파일 읽기 — UTF-8 우선, 실패 시 EUC-KR (레거시 .gib). */
+/** Read a game record file — UTF-8 first, EUC-KR on failure (legacy .gib). */
 export async function readGiboFile(file: File): Promise<string> {
   const buf = await file.arrayBuffer();
   try {
@@ -35,7 +35,7 @@ export async function readGiboFile(file: File): Promise<string> {
   }
 }
 
-/** 형식 감지: PGN(대괄호 영문 헤더/SAN) vs .gib(한국식). */
+/** Detect format: PGN (English bracket headers/SAN) vs .gib (Korean-style). */
 export function detectFormat(text: string): 'pgn' | 'gib' {
   if (/\[\s*(Variant|FEN|Event|SetUp)\s+"/i.test(text)) return 'pgn';
   if (/\[(대회명|초대국자|한대국자|초차림|한차림|대국결과|총수)\s+"/.test(text)) return 'gib';
@@ -99,7 +99,7 @@ export function fromPgn(ffish: FfishModule, text: string): ParsedGame {
   }
 }
 
-// ---------- .gib (KJA 스타일) ----------
+// ---------- .gib (KJA style) ----------
 
 export interface GibMeta {
   choPlayer: string;
@@ -125,7 +125,7 @@ export function toGib(startFen: string, moves: MoveRecord[], result: string | nu
     `[총수 "${moves.length}"]`,
   ];
   if (result && GIB_RESULT[result]) lines.push(`[대국결과 "${GIB_RESULT[result]}"]`);
-  // 비표준 시작 배치는 FEN 헤더로 보존 (자체 확장 — 레거시 뷰어는 무시)
+  // Preserve non-standard start positions via a FEN header (our own extension — legacy viewers ignore it)
   if (choPattern === '-' || hanPattern === '-' || !startFen.includes(' w - - 0 1') || startFen !== fenFromPatterns(choPattern, hanPattern)) {
     lines.push(`[FEN "${startFen}"]`);
   }
@@ -133,7 +133,7 @@ export function toGib(startFen: string, moves: MoveRecord[], result: string | nu
   moves.forEach((m, i) => {
     body.push(`${i + 1}. ${kjaMove(m.uci, m.piece, m.captured, m.check)}`);
   });
-  // 5수씩 줄바꿈
+  // wrap lines every 5 moves
   const rows: string[] = [];
   for (let i = 0; i < body.length; i += 5) rows.push(body.slice(i, i + 5).join('  '));
   return `${lines.join('\n')}\n\n${rows.join('\n')}\n`;
@@ -145,7 +145,7 @@ function fenFromPatterns(choKo: string, hanKo: string): string | null {
   return c && h ? fenFromAbsolute(c, h, 'w') : null;
 }
 
-/** KJA 좌표('79') → UCI('i4'). 행 '0' = 10행. */
+/** KJA coordinate ('79') → UCI ('i4'). Row '0' = row 10. */
 function kjaSqToUci(rc: string): string | null {
   if (!/^\d\d$/.test(rc)) return null;
   let row = Number(rc[0]);
@@ -158,7 +158,7 @@ function kjaSqToUci(rc: string): string | null {
 const GIB_MOVE = /^(\d\d)(차|포|마|상|사|졸|병|장|궁)(\d\d)/;
 
 export function fromGib(ffish: FfishModule, ruleset: string, text: string): ParsedGame {
-  // 헤더
+  // Headers
   const headers = new Map<string, string>();
   for (const m of text.matchAll(/\[(\S+)\s+"([^"]*)"\]/g)) headers.set(m[1]!, m[2]!);
 
@@ -169,7 +169,7 @@ export function fromGib(ffish: FfishModule, ruleset: string, text: string): Pars
     fen = (cho && han && fenFromPatterns(cho, han)) || DEFAULT_START_FEN;
   }
 
-  // 수순: 헤더 제거 후 토큰화
+  // Moves: strip headers, then tokenize
   const bodyText = text.replace(/\[[^\]]*\]/g, ' ');
   const tokens = bodyText.split(/\s+/).filter(t => t && !/^\d+\.$/.test(t));
 
@@ -177,7 +177,7 @@ export function fromGib(ffish: FfishModule, ruleset: string, text: string): Pars
   const moves: string[] = [];
   try {
     for (const raw of tokens) {
-      const token = raw.replace(/^\d+\./, ''); // "1.79졸78" 형태 대비
+      const token = raw.replace(/^\d+\./, ''); // handle "1.79졸78"-style tokens
       if (!token) continue;
       if (token.startsWith('한수쉼')) {
         const pass = board
@@ -194,7 +194,7 @@ export function fromGib(ffish: FfishModule, ruleset: string, text: string): Pars
         continue;
       }
       const m = GIB_MOVE.exec(token);
-      if (!m) continue; // 결과 표기 등 무관 토큰은 무시
+      if (!m) continue; // ignore unrelated tokens such as result markers
       const from = kjaSqToUci(m[1]!);
       const to = kjaSqToUci(m[3]!);
       if (!from || !to) throw new Error(`import.badMove:${moves.length + 1}`);
@@ -208,7 +208,7 @@ export function fromGib(ffish: FfishModule, ruleset: string, text: string): Pars
   return { fen, moves };
 }
 
-// ---------- 통합 ----------
+// ---------- Combined ----------
 
 export function parseGibo(ffish: FfishModule, ruleset: string, text: string): ParsedGame {
   const cleaned = text.replace(/^﻿/, '').trim();

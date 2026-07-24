@@ -7,6 +7,7 @@ import { parseUci, uciToKey } from './notation';
 import { playSound } from './sound';
 import { saveGame, loadSavedGame, type SavedGame } from './storage';
 import { saveNnue, loadNnue, deleteNnue, isValidNnueFile } from './nnue';
+import { parsePlayLink } from './playlink';
 
 export type Mode = 'ai' | 'manual';
 export type Ruleset = 'janggi' | 'janggitraditional' | 'janggimodern' | 'janggicasual';
@@ -129,6 +130,28 @@ class GameState {
    */
   async autoStart(): Promise<void> {
     await this.init();
+
+    // /play deep link: start immediately with the options given as query
+    // parameters (see PLAY.md). Consumed once — the URL is rewritten back to
+    // '/' so a reload resumes the auto-saved game instead of restarting.
+    if (location.pathname === '/play') {
+      const link = parsePlayLink(location.search, this.ffishMod!);
+      history.replaceState(null, '', '/');
+      for (const w of link.warnings) console.warn(`[/play] ${w}`);
+      if (link.fen) {
+        await this.startFromFen(link.fen, link.cfg);
+      } else {
+        await this.startGame({
+          choSetup: link.choSetup,
+          hanSetup: link.hanSetup,
+          firstMover: link.firstMover,
+          ...link.cfg,
+        });
+      }
+      void this.initNnue(); // restore saved NNUE in the background
+      return;
+    }
+
     const saved = loadSavedGame();
     // Restore an unfinished game even with no moves — keeps orientation, mode, rules, etc.
     if (saved && !saved.result) {

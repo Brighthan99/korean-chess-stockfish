@@ -19,6 +19,8 @@ compiled to WebAssembly.
   [Fairy-Stockfish NNUE page](https://fairy-stockfish.github.io/nnue/) and select it in the app;
   it is stored in IndexedDB and re-applied automatically (this repository does not redistribute the net)
 - UI in Korean and English
+- `/play` deep link — start a game straight from a URL with query-parameter
+  options (see [PLAY.md](PLAY.md) for the format and validation rules)
 
 ## Development
 

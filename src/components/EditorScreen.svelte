@@ -10,6 +10,8 @@
   import { HAN_KOMI, PIECE_LIMITS, isPalaceSquare, findEditorViolation, fenBoard, type EditorViolation } from '../lib/rules';
   import { keyToUci, pieceKo, pieceEn } from '../lib/notation';
   import { i18n, t } from '../lib/i18n.svelte';
+  import { buildPlayUrl } from '../lib/playlink';
+  import ShareLink from './ShareLink.svelte';
 
   // Palette selection (for click-to-place). Drag-move, delete, and drag-add are always active.
   type Brush = { color: cg.Color; role: cg.Role } | null;
@@ -267,6 +269,20 @@
     return Number.isFinite(komiCustom) ? komiCustom : 0;
   }
 
+  // /play URL for the current board + options — display only (plain text, PLAY.md)
+  const shareUrl = $derived(
+    buildPlayUrl({
+      fen: fenText,
+      first: sideToMove === 'b' ? 'han' : 'cho',
+      mode: playMode,
+      time: aiMovetime,
+      rules: ruleset,
+      komi: komiSide,
+      komiPoints: komiSide === 'none' ? undefined : komiAmount === 'default' ? HAN_KOMI : komiCustom,
+      orient: orientation === 'b' ? 'han' : 'cho',
+    }),
+  );
+
   function start(): void {
     const ffish = game.ffish;
     const fen = fullFen();
@@ -421,6 +437,8 @@
         <button class="start" onclick={start}>{t('setup.start')}</button>
         <button class="cancel" onclick={() => game.closeOverlay()}>{t('editor.cancel')}</button>
       </div>
+
+      <ShareLink url={shareUrl} />
     </div>
   </div>
 </div>

@@ -4,6 +4,8 @@
   import { game, type Ruleset, type GameConfig, type KomiSide } from '../lib/game.svelte';
   import { i18n, t } from '../lib/i18n.svelte';
   import { parseGibo, readGiboFile } from '../lib/gibo';
+  import { buildPlayUrl } from '../lib/playlink';
+  import ShareLink from './ShareLink.svelte';
 
   // Restore last-used options (kc-setup)
   const saved = ((): Record<string, unknown> => {
@@ -110,6 +112,21 @@
   function start(): void {
     void game.startGame({ choSetup, hanSetup, firstMover, ...currentConfig() });
   }
+
+  // /play URL for the current selections — display only (plain text, PLAY.md)
+  const shareUrl = $derived(
+    buildPlayUrl({
+      cho: choSetup,
+      han: hanSetup,
+      first: firstMover === 'b' ? 'han' : 'cho',
+      mode: playMode,
+      time: aiMovetime,
+      rules: ruleset,
+      komi: komiSide,
+      komiPoints: HAN_KOMI,
+      orient: orientation === 'b' ? 'han' : 'cho',
+    }),
+  );
 </script>
 
 <div class="setup">
@@ -208,6 +225,8 @@
     </div>
 
     <button class="start" onclick={start}>{t('setup.start')}</button>
+
+    <ShareLink url={shareUrl} />
   </section>
 
   <section class="extras">

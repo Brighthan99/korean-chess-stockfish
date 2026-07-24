@@ -55,6 +55,8 @@ const MESSAGES: Record<string, Record<Locale, string>> = {
   'setup.komiNoteCho': { ko: '(초 덤 +{n})', en: "(Cho's komi +{n})" },
   'setup.komiNoteNone': { ko: '(덤 없음)', en: '(no komi)' },
   'setup.start': { ko: '대국 시작', en: 'Start game' },
+  'share.link': { ko: '시작 링크 (베타 — 형식이 바뀔 수 있음)', en: 'Start link (beta — format may change)' },
+  'share.copy': { ko: '복사', en: 'Copy' },
 
   // Game panel
   'side.cho': { ko: '초', en: 'Cho' },
